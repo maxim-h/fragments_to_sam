@@ -1,0 +1,17 @@
+[package]
+name = "bed_to_bam"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+noodles = {version = "*", features = ["core", "sam", "bam", "bgzf"]}
+noodles-core = "*"
+noodles-sam = {version = "*", features = ["async"]}
+noodles-bam = {version = "*", features = ["async"]}
+noodles-bgzf = { version = "*", features = ["async", "libdeflate"]}
+libdeflater = "*"
+tokio = { version = "*", features = ["macros", "rt-multi-thread", "fs", "io-util", "io-std"]}
+clap = {version = "*", features = ["derive"]}
+tqdm = "*"
