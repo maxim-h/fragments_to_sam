@@ -4,13 +4,15 @@
 //!
 //! Verify the output by piping to `samtools view --no-PG --with-header`.
 
-use std::io::{BufRead, Error};
+use std::fs::File;
+use std::io;
+use std::io::{BufRead, Error, Stdout};
 use std::path::Path;
 use noodles_core::Position;
 use noodles_bgzf as bgzf;
-use noodles_sam::{self as sam, alignment::Record, AsyncWriter, header::{Program, ReferenceSequence, reference_sequence, Header}};
+use noodles_sam::{self as sam, alignment::Record, header::{Program, ReferenceSequence, reference_sequence, Header}, Writer};
 // use noodles_sam::header::header::{GroupOrder, Header, SortOrder, Version};
-use tokio::io::{self, AsyncBufReadExt};
+// use tokio::io::{self, AsyncBufReadExt, Stdout};
 use clap::Parser;
 use noodles_sam::header::header::{GroupOrder, SortOrder, Version};
 use noodles_sam::record::{Cigar, Flags, ReadName};
@@ -48,7 +50,7 @@ fn read_genome(genome: &Path) -> Vec<(reference_sequence::Name, usize)> {
     res
 }
 
-async fn parse_and_send(line: & mut String, writer: & mut AsyncWriter<tokio::io::Stdout>, header: & Header) {
+fn parse_and_send(line: & mut String, writer: &mut Writer<Stdout>, header: & Header) {
     let mut l = line.split("\t");
 
     let length: usize;
@@ -109,16 +111,15 @@ async fn parse_and_send(line: & mut String, writer: & mut AsyncWriter<tokio::io:
         .set_flags(Flags::from(67))
         .build()
         ;
-    writer.write_record(header, &record).await.expect("Couldn't write record");
+    writer.write_record(header, &record).expect("Couldn't write record");
     record.flags_mut().remove(Flags::from(67));
     record.flags_mut().insert(Flags::from(147));
-    writer.write_record(header, &record).await.expect("Couldn't write record");
+    writer.write_record(header, &record).expect("Couldn't write record");
 }
 
 
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let fragment_file = Path::new(&args.fragments);
@@ -132,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect::<Result<_, _>>()?;
 
-    let mut writer = sam::AsyncWriter::new(io::stdout());
+    let mut writer = sam::Writer::new(io::stdout());
 
     let  header = sam::Header::builder()
         // .set_version(Version::new(1, 0))
@@ -150,20 +151,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
 
-    writer.write_header(&header).await?;
+    writer.write_header(&header)?;
 
-    let reader = tokio::fs::File::open(fragment_file)
-        .await
-        .map(bgzf::AsyncReader::new)
+    let reader = File::open(fragment_file)
+        .map(bgzf::Reader::new)
         .expect("Couldn't open the reader");
 
-    let mut lines = reader.lines();
+    let lines = reader.lines();
 
-    loop {
-        match lines.next_line().await.expect("Didn't receive a line") {
-            Some(mut line) => {parse_and_send(& mut line, & mut writer, &header).await;},
-            None => { break },
-        }
+    for line in lines {
+        parse_and_send(& mut line.expect("Didn't receive a line"), & mut writer, &header);
     }
 
     Ok(())

@@ -8,10 +8,10 @@ edition = "2021"
 [dependencies]
 noodles = {version = "*", features = ["core", "sam", "bam", "bgzf"]}
 noodles-core = "*"
-noodles-sam = {version = "*", features = ["async"]}
-noodles-bam = {version = "*", features = ["async"]}
-noodles-bgzf = { version = "*", features = ["async", "libdeflate"]}
+noodles-sam = {version = "*"}
+noodles-bam = {version = "*"}
+noodles-bgzf = { version = "*", features = ["libdeflate"]}
 libdeflater = "*"
-tokio = { version = "*", features = ["macros", "rt-multi-thread", "fs", "io-util", "io-std"]}
+#tokio = { version = "*", features = ["macros", "rt-multi-thread", "fs", "io-util", "io-std"]}
 clap = {version = "*", features = ["derive"]}
-tqdm = "*"
+#tqdm = "*"
