@@ -9,7 +9,7 @@ use std::io;
 use std::io::{BufRead, Error, Stdout, Write};
 use std::path::Path;
 use noodles_bgzf as bgzf;
-use noodles_sam::{self as sam, header::{Program, ReferenceSequence, reference_sequence}};
+use noodles_sam::{self as sam, header::{Program, ReferenceSequence, reference_sequence}, Header};
 use clap::Parser;
 use noodles_sam::header::header::{GroupOrder, SortOrder, Version};
 
@@ -46,7 +46,7 @@ fn read_genome(genome: &Path) -> Vec<(reference_sequence::Name, usize)> {
     res
 }
 
-fn parse_and_send(line: & mut String, writer: & mut std::io::BufWriter<Stdout>) {
+fn parse_and_send(line: & mut String, writer: & mut io::BufWriter<Stdout>, header: &Header) {
     let mut l = line.split("\t");
 
     let chr = l.next().expect("Couldn't read ref name");
@@ -62,6 +62,9 @@ fn parse_and_send(line: & mut String, writer: & mut std::io::BufWriter<Stdout>) 
     let length: usize = end - start;
     let rn = l.next().expect("couldn't read the CB");
 
+    if !header.reference_sequences().contains_key(chr) {
+        return
+    }
 
     // let x = format!("{}\t67\t{}\t{}\t255\t{}M\t=\t{}\t0\t*\t*", rn, chr, start+1, length, start+1);
     // writer.write(x.as_bytes());
@@ -125,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut writer= io::BufWriter::new(io::stdout());
     for line in lines {
-        parse_and_send(& mut line.expect("Didn't receive a line"), & mut writer);
+        parse_and_send(& mut line.expect("Didn't receive a line"), & mut writer, &header);
     }
 
     Ok(())
