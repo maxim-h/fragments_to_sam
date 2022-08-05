@@ -6,16 +6,12 @@
 
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, Error, Stdout};
+use std::io::{BufRead, Error, Stdout, Write};
 use std::path::Path;
-use noodles_core::Position;
 use noodles_bgzf as bgzf;
-use noodles_sam::{self as sam, alignment::Record, header::{Program, ReferenceSequence, reference_sequence, Header}, Writer};
-// use noodles_sam::header::header::{GroupOrder, Header, SortOrder, Version};
-// use tokio::io::{self, AsyncBufReadExt, Stdout};
+use noodles_sam::{self as sam, header::{Program, ReferenceSequence, reference_sequence}};
 use clap::Parser;
 use noodles_sam::header::header::{GroupOrder, SortOrder, Version};
-use noodles_sam::record::{Cigar, Flags, ReadName};
 
 
 /// Convert 10x style fragments file to SAM stream
@@ -50,71 +46,38 @@ fn read_genome(genome: &Path) -> Vec<(reference_sequence::Name, usize)> {
     res
 }
 
-fn parse_and_send(line: & mut String, writer: &mut Writer<Stdout>, header: & Header) {
+fn parse_and_send(line: & mut String, writer: & mut std::io::BufWriter<Stdout>) {
     let mut l = line.split("\t");
 
-    let length: usize;
-    let alignment_start: Position;
-    let ref_id: usize;
-
-    let mut record = Record::builder()
-        .set_reference_sequence_id(
-            {
-                ref_id = match header
-                    .reference_sequences()
-                    .get_index_of(
-                        l.next().expect("Couldn't read ref name")
-                    ) {
-                    Some(i) => i,
-                    None => {return}
-
-                };
-                ref_id
-            }
-        )
-        .set_alignment_start(
-            {
-                let start: usize = l.next()
-                    .expect("Couldn't read start position")
-                    .parse()
-                    .expect("Couldn't parse start position")
-                    ;
-                let end: usize = l.next()
-                    .expect("Couldn't read end position")
-                    .parse()
-                    .expect("Couldn't parse end position")
-                    ;
-                length = end - start;
-                alignment_start = Position::new(start+1).expect("couldn't convert to position");
-                alignment_start
-            }
-        )
-        .set_read_name(
-            ReadName::try_new(
-                l.next().expect("couldn't read the CB")
-            ).expect("Couldn't create ReadName")
-        )
-        // .set_mapping_quality(MappingQuality::new().expect("this is bullshit"))
-        .set_cigar(
-            Cigar::try_from(
-                vec![
-                    sam::record::cigar::Op::new(
-                        sam::record::cigar::op::Kind::Match,
-                        length
-                    )
-                ]
-            )
-                .expect("Couldn't create Cigar")
-        )
-        .set_mate_reference_sequence_id(ref_id)
-        .set_mate_alignment_start(alignment_start)
-        .set_flags(Flags::from(67))
-        .build()
+    let chr = l.next().expect("Couldn't read ref name");
+    let start: usize = l.next().expect("Couldn't read start position")
+        .parse()
+        .expect("Couldn't parse start position")
         ;
-    writer.write_record(header, &record).expect("Couldn't write record");
-    record.flags_mut().remove(Flags::from(67));
-    record.flags_mut().insert(Flags::from(147));
-    writer.write_record(header, &record).expect("Couldn't write record");
+    let end: usize = l.next()
+        .expect("Couldn't read end position")
+        .parse()
+        .expect("Couldn't parse end position")
+        ;
+    let length: usize = end - start;
+    let rn = l.next().expect("couldn't read the CB");
+
+
+    // let x = format!("{}\t67\t{}\t{}\t255\t{}M\t=\t{}\t0\t*\t*", rn, chr, start+1, length, start+1);
+    // writer.write(x.as_bytes());
+    // writer.write(format!("{}\t67\t{}\t{}\t255\t{}M\t=\t{}\t0\t*\t*", rn, chr, start+1, length, start+1));
+    writeln!(
+        writer,
+        "{}",
+        format!("{}\t67\t{}\t{}\t255\t{}M\t=\t{}\t0\t*\t*", rn, chr, start+1, length, start+1)
+    )
+        .expect("asd");
+    writeln!(
+        writer,
+        "{}",
+        format!("{}\t147\t{}\t{}\t255\t{}M\t=\t{}\t0\t*\t*", rn, chr, start+1, length, start+1)
+    )
+        .expect("asd");
 }
 
 
@@ -152,6 +115,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     writer.write_header(&header)?;
+    drop(writer);
 
     let reader = File::open(fragment_file)
         .map(bgzf::Reader::new)
@@ -159,8 +123,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let lines = reader.lines();
 
+    let mut writer= io::BufWriter::new(io::stdout());
     for line in lines {
-        parse_and_send(& mut line.expect("Didn't receive a line"), & mut writer, &header);
+        parse_and_send(& mut line.expect("Didn't receive a line"), & mut writer);
     }
 
     Ok(())
