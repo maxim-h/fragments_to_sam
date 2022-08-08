@@ -6,7 +6,7 @@
 
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, Error, Stdout, Write};
+use std::io::{BufRead, BufReader, Error, stdin, Stdout, Write};
 use std::path::Path;
 use noodles_bgzf as bgzf;
 use noodles_sam::{self as sam, header::{Program, ReferenceSequence, reference_sequence}, Header};
@@ -111,7 +111,7 @@ impl ParseAndSend for F {
         writeln!(
             writer,
             "{}",
-            format!("{}\t67\t{}\t{}\t255\t{}M\t=\t{}\t0\t*\t*", rn, chr, start+1, length, start+1)
+            format!("{}\t0\t{}\t{}\t255\t{}M\t*\t0\t0\t*\t*", rn, chr, start+1, length)
         )
             .expect("Couldn't send line");
     }
@@ -142,7 +142,7 @@ impl ParseAndSend for R {
         writeln!(
             writer,
             "{}",
-            format!("{}\t147\t{}\t{}\t255\t{}M\t=\t{}\t0\t*\t*", rn, chr, start+1, length, start+1)
+            format!("{}\t16\t{}\t{}\t255\t{}M\t*\t0\t0\t*\t*", rn, chr, start+1, length)
         )
             .expect("Couldn't send line");
     }
@@ -173,7 +173,6 @@ fn read_genome(genome: &Path) -> Vec<(reference_sequence::Name, usize)> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let fragment_file = Path::new(&args.fragments);
     let rss = read_genome(Path::new(&args.genome));
 
     let reference_sequences = rss
@@ -205,13 +204,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writer.write_header(&header)?;
     drop(writer);
 
-    let reader = File::open(fragment_file)
-        .map(bgzf::Reader::new)
-        .expect("Couldn't open the reader");
 
-    let lines = reader.lines();
+
+    // let mut lines;
+    // let lines = reader.lines();
+
+    let mut reader = Box::new(stdin().lock()) as Box<dyn BufRead>;
+
+    if args.fragments != "-" {
+        reader = Box::new(
+            BufReader::new(
+                File::open(Path::new(&args.fragments))
+                    .map(bgzf::Reader::new)
+                    .expect("Couldn't open the reader")
+            )
+        )
+    }
 
     let mut writer= io::BufWriter::new(io::stdout());
+
+    let lines = reader.lines();
 
     match args.mode {
         Mode::PE => {
