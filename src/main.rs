@@ -48,14 +48,17 @@ struct Args {
 
 trait ParseAndSend {
     fn parse_and_send(line: & mut String, writer: & mut io::BufWriter<Stdout>, header: &Header);
-}
+    fn parse_entry<'a>(line: &'a mut String, header: &Header) -> Option<(&'a str, usize, usize, &'a str)> {
+        if line.starts_with('#') {
+            return None
+        }
 
-// this should be a macro
-impl ParseAndSend for PE {
-    fn parse_and_send(line: & mut String, writer: & mut io::BufWriter<Stdout>, header: &Header) {
         let mut l = line.split("\t");
 
         let chr = l.next().expect("Couldn't read ref name");
+        if !header.reference_sequences().contains_key(chr) {
+            return None
+        }
         let start: usize = l.next().expect("Couldn't read start position")
             .parse()
             .expect("Couldn't parse start position")
@@ -68,9 +71,19 @@ impl ParseAndSend for PE {
         let length: usize = end - start;
         let rn = l.next().expect("couldn't read the CB");
 
-        if !header.reference_sequences().contains_key(chr) {
-            return
-        }
+        return Some((chr, start, length, rn))
+    }
+}
+
+
+// this should be a macro
+impl ParseAndSend for PE {
+    fn parse_and_send(line: & mut String, writer: & mut io::BufWriter<Stdout>, header: &Header) {
+
+        let (chr, start, length, rn) =  match Self::parse_entry(line, header) {
+            Some(r) => r,
+            None => return,
+        };
 
         writeln!(
             writer,
@@ -89,24 +102,11 @@ impl ParseAndSend for PE {
 
 impl ParseAndSend for F {
     fn parse_and_send(line: & mut String, writer: & mut io::BufWriter<Stdout>, header: &Header) {
-        let mut l = line.split("\t");
 
-        let chr = l.next().expect("Couldn't read ref name");
-        let start: usize = l.next().expect("Couldn't read start position")
-            .parse()
-            .expect("Couldn't parse start position")
-            ;
-        let end: usize = l.next()
-            .expect("Couldn't read end position")
-            .parse()
-            .expect("Couldn't parse end position")
-            ;
-        let length: usize = end - start;
-        let rn = l.next().expect("couldn't read the CB");
-
-        if !header.reference_sequences().contains_key(chr) {
-            return
-        }
+        let (chr, start, length, rn) =  match Self::parse_entry(line, header) {
+            Some(r) => r,
+            None => return,
+        };
 
         writeln!(
             writer,
@@ -120,24 +120,11 @@ impl ParseAndSend for F {
 
 impl ParseAndSend for R {
     fn parse_and_send(line: & mut String, writer: & mut io::BufWriter<Stdout>, header: &Header) {
-        let mut l = line.split("\t");
 
-        let chr = l.next().expect("Couldn't read ref name");
-        let start: usize = l.next().expect("Couldn't read start position")
-            .parse()
-            .expect("Couldn't parse start position")
-            ;
-        let end: usize = l.next()
-            .expect("Couldn't read end position")
-            .parse()
-            .expect("Couldn't parse end position")
-            ;
-        let length: usize = end - start;
-        let rn = l.next().expect("couldn't read the CB");
-
-        if !header.reference_sequences().contains_key(chr) {
-            return
-        }
+        let (chr, start, length, rn) =  match Self::parse_entry(line, header) {
+            Some(r) => r,
+            None => return,
+        };
 
         writeln!(
             writer,
@@ -149,8 +136,8 @@ impl ParseAndSend for R {
 }
 
 fn read_genome(genome: &Path) -> Vec<(reference_sequence::Name, usize)> {
-    let f = std::fs::File::open(genome).expect("Couldn't open genome file");
-    let r = std::io::BufReader::new(f);
+    let f = File::open(genome).expect("Couldn't open genome file");
+    let r = BufReader::new(f);
 
     let mut res: Vec<(reference_sequence::Name, usize)> = Vec::new();
     // that's some ugly stuff
@@ -185,7 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut writer = sam::Writer::new(io::stdout());
 
-    let  header = sam::Header::builder()
+    let  header = Header::builder()
         // .set_version(Version::new(1, 0))
         // .set_sort_order(SortOrder::Unknown).set_group_order(GroupOrder::Query)
         .set_header(
