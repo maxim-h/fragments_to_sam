@@ -1,5 +1,5 @@
 [package]
-name = "bed_to_bam"
+name = "fragments_to_sam"
 version = "0.1.0"
 edition = "2021"
 
