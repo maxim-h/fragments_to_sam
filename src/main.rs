@@ -1,9 +1,3 @@
-//! Creates a new BAM file.
-//!
-//! This writes a SAM header, reference sequences, and one unmapped record to stdout.
-//!
-//! Verify the output by piping to `samtools view --no-PG --with-header`.
-
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, Error, stdin, Stdout, Write};
@@ -53,7 +47,7 @@ trait ParseAndSend {
             return None
         }
 
-        let mut l = line.split("\t");
+        let mut l = line.split('\t');
 
         let chr = l.next().expect("Couldn't read ref name");
         if !header.reference_sequences().contains_key(chr) {
@@ -71,7 +65,7 @@ trait ParseAndSend {
         let length: usize = end - start;
         let rn = l.next().expect("couldn't read the CB");
 
-        return Some((chr, start, length, rn))
+        Some((chr, start, length, rn))
     }
 }
 
@@ -141,9 +135,9 @@ fn read_genome(genome: &Path) -> Vec<(reference_sequence::Name, usize)> {
 
     let mut res: Vec<(reference_sequence::Name, usize)> = Vec::new();
     // that's some ugly stuff
-    for line in r.lines().into_iter().collect::<Result<Vec<String>, Error>>().expect("asd") {
+    for line in r.lines().collect::<Result<Vec<String>, Error>>().expect("asd") {
         let mut l = line
-            .split("\t")
+            .split('\t')
             ;
 
         let name: reference_sequence::Name = l.next().expect("Couldn't read name").parse().expect("Couldn't parse name into string");
@@ -173,8 +167,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = sam::Writer::new(io::stdout());
 
     let  header = Header::builder()
-        // .set_version(Version::new(1, 0))
-        // .set_sort_order(SortOrder::Unknown).set_group_order(GroupOrder::Query)
         .set_header(
             sam::header::header::Header::builder()
                 .set_version(Version::new(1, 0))
@@ -189,12 +181,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     writer.write_header(&header)?;
-    drop(writer);
-
-
-
-    // let mut lines;
-    // let lines = reader.lines();
 
     let mut reader = Box::new(stdin().lock()) as Box<dyn BufRead>;
 
@@ -208,7 +194,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     }
 
-    let mut writer= io::BufWriter::new(io::stdout());
+    let mut writer = io::BufWriter::new(io::stdout());
 
     let lines = reader.lines();
 
@@ -229,7 +215,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
     }
-
 
     Ok(())
 }
